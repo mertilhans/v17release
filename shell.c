@@ -6,7 +6,7 @@
 /*   By: merilhan <merilhan@42kocaeli.com.tr>       +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/03 03:36:25 by husarpka          #+#    #+#             */
-/*   Updated: 2025/07/29 05:38:37 by merilhan         ###   ########.fr       */
+/*   Updated: 2025/07/29 05:47:43 by merilhan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -259,12 +259,40 @@ int is_only_variable_expansion(char *original,char *expanded)
     }
     return 0;
 }
-
+int is_pure_variable_expansion(char *input)
+{
+    if (!input)
+        return 0;
+    if(input[0] != '$')
+        return 0;
+    if(ft_strchr(input,'|') || ft_strchr(input,'<') || ft_strchr(input,'>'))
+        return 0;
+    return 1;
+}
 void process_and_execute(char *input, char **env)
 {
 	if (!input || strlen(input) == 0)
 		return;
 	check_and_handle_signal();
+	
+	// Eğer sadece variable expansion ise, expand et ve değeri yazdır
+	if (is_pure_variable_expansion(input))
+	{
+		char *expanded = expand_with_quotes(input, g_env_list);
+		if (expanded && ft_strlen(expanded) > 0)
+		{
+			printf("%s\n", expanded);
+			gc_free(expanded);
+		}
+		else
+		{
+			printf("command not found\n");
+			if (expanded)
+				gc_free(expanded);
+		}
+		return;
+	}
+	
 	t_token *tokens = tokenize_input(input);
 	if (!tokens)
 	{
@@ -278,33 +306,10 @@ void process_and_execute(char *input, char **env)
 		gc_free(tokens);
 		return;
 	}
-	int is_single_variable_expansion = 0;
-    if(cmd_list->argv && cmd_list->argv[0] && !cmd_list->argv[1])
-    {
-        if(cmd_list->argv[0][0] == '$')
-        {
-            char *expanded = expand_with_quotes(cmd_list->argv[0], g_env_list);
-            if(expanded && is_only_variable_expansion(cmd_list->argv[0], expanded))
-                is_single_variable_expansion = 1;
-            if (expanded)
-                gc_free(expanded);
-        }
-    }
+	
 	// Expansion yap
 	expand_parser_list(cmd_list, g_env_list);
-	if(is_single_variable_expansion && cmd_list->argv && cmd_list->argv[0])
-    {
-        char *exec_path = find_executable(cmd_list->argv[0]);
-        if(!exec_path)
-        {
-            g_last_exit_status = 127;
-            gc_free(tokens);
-            gc_free(cmd_list);
-            return;
-        }
-        free(exec_path);
-        
-    }
+	
 	// Execute et
 	execute_cmds(cmd_list, env);
 	
