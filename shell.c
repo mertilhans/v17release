@@ -6,7 +6,7 @@
 /*   By: merilhan <merilhan@42kocaeli.com.tr>       +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/03 03:36:25 by husarpka          #+#    #+#             */
-/*   Updated: 2025/07/29 04:00:51 by merilhan         ###   ########.fr       */
+/*   Updated: 2025/07/29 05:38:37 by merilhan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,6 +14,7 @@
 
 // Global environment list
 t_env *g_env_list = NULL;
+
 
 t_tokenizer *tokenizer_init(char *input)
 {
@@ -245,11 +246,25 @@ char	*ft_strchr(const char *s, int c)
 		return ((char *)s);
 	return (NULL);
 }
+int is_only_variable_expansion(char *original,char *expanded)
+{
+    if (!original || !expanded)
+        return 0;
+    
+    // Eğer sadece bir değişken expansion'ı varsa ve boşluk yoksa
+    if (ft_strchr(original, '$') && !ft_strchr(original, ' ') && 
+        ft_strchr(expanded, '$') && !ft_strchr(expanded, ' '))
+    {
+        return 1;
+    }
+    return 0;
+}
+
 void process_and_execute(char *input, char **env)
 {
 	if (!input || strlen(input) == 0)
 		return;
-		
+	check_and_handle_signal();
 	t_token *tokens = tokenize_input(input);
 	if (!tokens)
 	{
@@ -263,10 +278,33 @@ void process_and_execute(char *input, char **env)
 		gc_free(tokens);
 		return;
 	}
-	
+	int is_single_variable_expansion = 0;
+    if(cmd_list->argv && cmd_list->argv[0] && !cmd_list->argv[1])
+    {
+        if(cmd_list->argv[0][0] == '$')
+        {
+            char *expanded = expand_with_quotes(cmd_list->argv[0], g_env_list);
+            if(expanded && is_only_variable_expansion(cmd_list->argv[0], expanded))
+                is_single_variable_expansion = 1;
+            if (expanded)
+                gc_free(expanded);
+        }
+    }
 	// Expansion yap
 	expand_parser_list(cmd_list, g_env_list);
-	
+	if(is_single_variable_expansion && cmd_list->argv && cmd_list->argv[0])
+    {
+        char *exec_path = find_executable(cmd_list->argv[0]);
+        if(!exec_path)
+        {
+            g_last_exit_status = 127;
+            gc_free(tokens);
+            gc_free(cmd_list);
+            return;
+        }
+        free(exec_path);
+        
+    }
 	// Execute et
 	execute_cmds(cmd_list, env);
 	
@@ -281,17 +319,28 @@ int main(int ac , char **av, char **env)
 	
 	// Initialize global environment
 	g_env_list = init_env(env);
+    
+    setup_interactive_signals();
 	
 	char *line;
 	
 	while(1)
 	{
+        check_and_handle_signal();
 		line = readline("MiniShell->>>   ");
 		if (!line)
-			break;
+        {   
+            printf("exit\n");
+            break;
+        }
+        if(ft_strlen(line) == 0)
+        {
+            free(line);
+            continue;
+        }
         add_history(line);
 		
-		// Direkt olarak process_and_execute fonksiyonunu kullan
+		// Direkt git
 		process_and_execute(line, env);
 		
 		free(line);

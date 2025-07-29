@@ -6,17 +6,126 @@
 /*   By: merilhan <merilhan@42kocaeli.com.tr>       +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 09:01:38 by husarpka          #+#    #+#             */
-/*   Updated: 2025/07/29 04:07:07 by merilhan         ###   ########.fr       */
+/*   Updated: 2025/07/29 04:39:35 by merilhan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "shell.h" 
 
+// Expansion sonrasında lexer ile tekrar parse etdiyoruz
+char **parse_expanded_string_to_argv(char *expanded_str)
+{
+    if (!expanded_str || ft_strlen(expanded_str) == 0)
+        return NULL;
+    
+    // Kendi lexer'ını kullan
+    t_token *tokens = tokenize_input(expanded_str);
+    if (!tokens)
+        return NULL;
+    
+    // Token'ları argv array'ine dönüştür
+    int argc = 0;
+    int capacity = 8;
+    char **argv = gb_malloc(sizeof(char*) * capacity);
+    if (!argv)
+    {
+        gc_free(tokens);
+        return NULL;
+    }
+    
+    t_token *current = tokens;
+    while (current && current->type != TOKEN_EOF)
+    {
+        if (current->type == TOKEN_WORD)
+        {
+            if (argc >= capacity - 1)
+            {
+                capacity *= 2;
+                char **new_argv = gb_malloc(sizeof(char*) * capacity);
+                if (!new_argv)
+                {
+                    gc_free(tokens);
+                    return NULL;
+                }
+                int i = 0;
+                while(i < argc)
+                {
+                    new_argv[i] = argv[i];
+                    i++;
+                }
+                argv = new_argv;
+            }
+            argv[argc++] = ft_strdup(current->value);
+        }
+        current = current->next;
+    }
+    argv[argc] = NULL;
+    
+    gc_free(tokens);
+    return argv;
+}
+
+// argv array'ini free eden fonksiyon
+void free_argv_array(char **argv)
+{
+    if(argv)
+        gc_free(argv);
+}
+
+// argv'yi expansion sonrasında yeniden oluşturan fonksiyon
+char **rebuild_argv_with_expansion(char **original_argv, char *expanded_str, int position)
+{
+    char **expanded_argv = parse_expanded_string_to_argv(expanded_str);
+    if (!expanded_argv || !expanded_argv[0])
+    {
+        if (expanded_argv)
+            gc_free(expanded_argv);
+        return original_argv;
+    }
+    
+    // Orijinal argv'nin uzunluğunu hesapla
+    int original_argc = 0;
+    while (original_argv[original_argc])
+        original_argc++;
+    
+    // Expanded argv'nin uzunluğunu hesapla
+    int expanded_argc = 0;
+    while (expanded_argv[expanded_argc])
+        expanded_argc++;
+    
+    // Yeni argv için yer ayır
+    int new_argc = original_argc + expanded_argc - 1; // -1 çünkü bir elemanı değiştiriyoruz
+    char **new_argv = gb_malloc(sizeof(char*) * (new_argc + 1));
+    if (!new_argv)
+    {
+        gc_free(expanded_argv);
+        return original_argv;
+    }
+    
+    int new_idx = 0;
+    
+    // position'dan önceki elemanları kopyala
+    for (int i = 0; i < position; i++)
+        new_argv[new_idx++] = ft_strdup(original_argv[i]);
+    
+    // Expanded elemanları ekle
+    for (int i = 0; i < expanded_argc; i++)
+        new_argv[new_idx++] = ft_strdup(expanded_argv[i]);
+    
+    // position'dan sonraki elemanları kopyala
+    for (int i = position + 1; i < original_argc; i++)
+        new_argv[new_idx++] = ft_strdup(original_argv[i]);
+    
+    new_argv[new_idx] = NULL;
+    gc_free(expanded_argv);
+    
+    return new_argv;
+}
 
 void ft_clean_init(t_parser *cmd)
 {
     cmd->argv_cap = 1;
-    cmd->argv = malloc(sizeof(char*) * cmd->argv_cap);
+    cmd->argv = gb_malloc(sizeof(char*) * cmd->argv_cap);
     if (!cmd->argv)
     {
         perror("malloc failed");
@@ -29,7 +138,7 @@ void ft_clean_init(t_parser *cmd)
 
 void add_redirection(t_parser *cmd, t_redir_type type, char *filename)
 {
-    t_redirection *new_redir = malloc(sizeof(t_redirection));
+    t_redirection *new_redir = gb_malloc(sizeof(t_redirection));
     if (!new_redir)
     {
         perror("malloc failed");
@@ -97,7 +206,7 @@ void ft_loop_3(t_token **tokens, t_parser *cmd, int *argc)
         if (*argc + 1 >= cmd->argv_cap)
         {
             cmd->argv_cap *= 2;
-            new_argv = malloc(sizeof(char*) * cmd->argv_cap);
+            new_argv = gb_malloc(sizeof(char*) * cmd->argv_cap);
             if (!new_argv)
             {
                 perror("malloc failed");
@@ -108,7 +217,7 @@ void ft_loop_3(t_token **tokens, t_parser *cmd, int *argc)
                 new_argv[i] = cmd->argv[i];
                 i++;
             }
-            free(cmd->argv);
+            //gc_free(cmd->argv); // freeleme yiz çünkü yeni argv'yi kullanacağız
             cmd->argv = new_argv;
         }
         cmd->argv[(*argc)++] = (*tokens)->value;
@@ -167,7 +276,7 @@ t_token *ft_control_token(t_token *tokens, t_parser **cmd_list, t_parser **last_
     t_parser *cmd;
 
     argc = 0;
-    cmd = malloc(sizeof(t_parser));
+    cmd = gb_malloc(sizeof(t_parser));
     if (!cmd)
     {
         perror("malloc failed");
@@ -209,26 +318,46 @@ t_parser *parse_tokens(t_token *tokens)
     return cmd_list;
 }
 
+// Lexer tabanlı expansion fonksiyonu
 void expand_parser_list(t_parser *cmd_list, t_env *env_list)
 {
     t_parser *current = cmd_list;
-    int i;
     
     while (current)
     {
         // Expand argv arguments
         if (current->argv)
         {
-            i = 0;
+            int i = 0;
             while (current->argv[i])
             {
                 if (ft_strchr(current->argv[i], '$'))
                 {
                     char *expanded = expand_with_quotes(current->argv[i], env_list);
-                    if (expanded)
+                    if (expanded && strlen(expanded) > 0)
                     {
-                        // Eğer sadece bir değişken expansion'ı varsa ve boşluk yoksa direkt değiştir
-                        current->argv[i] = expanded;
+                        // Lexer ile tekrar parse et ve argv'yi yeniden oluştur
+                        char **new_argv = rebuild_argv_with_expansion(current->argv, expanded, i);
+                        if (new_argv != current->argv)
+                        {
+                            // Eski argv'yi free et
+                            for (int j = 0; current->argv[j]; j++)
+                                gc_free(current->argv[j]);
+                            gc_free(current->argv);
+                            current->argv = new_argv;
+                            
+                            // argv_cap'i güncelle
+                            int new_argc = 0;
+                            while (new_argv[new_argc])
+                                new_argc++;
+                            current->argv_cap = new_argc + 1;
+                        }
+                        gc_free(expanded);
+                    }
+                    else
+                    {
+                        if (expanded)
+                            gc_free(expanded);
                     }
                 }
                 i++;

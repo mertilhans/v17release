@@ -6,7 +6,7 @@
 /*   By: merilhan <merilhan@42kocaeli.com.tr>       +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/03 03:36:35 by husarpka          #+#    #+#             */
-/*   Updated: 2025/07/29 04:03:52 by merilhan         ###   ########.fr       */
+/*   Updated: 2025/07/29 05:37:26 by merilhan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -177,5 +177,13 @@ char    *get_env_value(t_env *env_list, char *key);
 t_env   *init_env(char **env);
 void    set_env_value(t_env **env_list, char *key, char *value);
 void    unset_env_value(t_env **env_list, char *key);
+
+//signal
+void handle_sigint(int signum);
+void setup_interactive_signals(void);
+void setup_child_signals(void);
+void check_and_handle_signal(void);
+
+char *find_executable(char *cmd);
 
 #endif

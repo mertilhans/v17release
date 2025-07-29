@@ -264,6 +264,9 @@ void child_process_exec(t_parser *cmd, t_exec_data *data)
 {
 	char *exec_path;
 
+	// Child process için signal'ları default'a çeviricez önemli
+	setup_child_signals();
+
 	if (data->in_fd != 0) 
 	{
 		dup2(data->in_fd, 0);
