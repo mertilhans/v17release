@@ -6,7 +6,7 @@
 /*   By: merilhan <merilhan@42kocaeli.com.tr>       +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/03 03:36:35 by husarpka          #+#    #+#             */
-/*   Updated: 2025/07/29 05:37:26 by merilhan         ###   ########.fr       */
+/*   Updated: 2025/07/29 05:59:51 by merilhan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,8 +25,8 @@
 # include "gb/gb.h"
 # include "lexer/shell.h"
 
-// Global environment variable list
-extern t_env *g_env_list;
+// Sadece exit status global kalabilir (signal handler için gerekli)
+extern int g_last_exit_status;
 
 // Token tipleri
 typedef enum e_token_type
@@ -63,8 +63,6 @@ typedef struct s_tokenizer
     char    current;     // Mevcut karakter
 } t_tokenizer;
 
-// --- YENİ EKLENEN/DEĞİŞEN YAPILAR ---
-
 // Redirection türlerini tanımlayan enum
 typedef enum e_redir_type
 {
@@ -92,16 +90,11 @@ typedef struct s_parser
     int                 parse_error;    // Ayrıştırma sırasında hata olup olmadığını belirtir (opsiyonel)
 } t_parser;
 
-
-extern int g_last_exit_status;
 // --- PARSER FONKSİYON PROTOTİPLERİ ---
 t_parser *parse_tokens(t_token *tokens);
-void print_cmds(t_parser *cmd_list); // Yeniden adlandırdım, `print` yerine daha açıklayıcı
+void print_cmds(t_parser *cmd_list);
 void ft_add_redirection(t_parser *cmd, char *filename, t_redir_type type);
-void ft_clean_cmd_node(t_parser *cmd); // ft_clean_init yerine daha açıklayıcı
-
-// --- DİĞER FONKSİYON PROTOTİPLERİ ---
-//oid execute_cmds(t_parser *cmd_list);
+void ft_clean_cmd_node(t_parser *cmd);
 
 // Tokenizer fonksiyon prototipleri
 t_tokenizer *tokenizer_init(char *input);
@@ -134,22 +127,22 @@ int is_quote(char c);
 size_t ft_strlen(const char *s);
 char *ft_strdup(char *str);
 
-
 void print(t_parser *c);
-void execute_cmds(t_parser *cmd_list,char **env);
+void execute_cmds(t_parser *cmd_list, char **env, t_env **env_list);
 void free_parser_list(t_parser *cmd_list);
 int count_commands(t_parser *cmd);
 
 void expand_parser_list(t_parser *cmd_list, t_env *env_list);
-//builtin
+
+// Builtin fonksiyonları - artık env_list parametresi alıyor
 int     is_builtin(char *av);
 int     built_echo(t_parser *cmd);
-int     built_cd(t_parser *cmd);
+int     built_cd(t_parser *cmd, t_env **env_list);
 int     builtin_pwd(void);
-int builtin_exit(t_parser *cmd);
-int     builtin_export(t_parser *cmd);
-int     builtin_unset(t_parser *cmd);
-int     builtin_env(t_parser *cmd);
+int     builtin_exit(t_parser *cmd);
+int     builtin_export(t_parser *cmd, t_env **env_list);
+int     builtin_unset(t_parser *cmd, t_env **env_list);
+int     builtin_env(t_parser *cmd, t_env *env_list);
 
 void expand_parser_list(t_parser *cmd_list, t_env *env_list);
 char    *ft_substr(char const *s, unsigned int start, size_t len);
@@ -166,8 +159,8 @@ char *expand_with_quotes(char *str, t_env *env);
 
 char    *push_char_res(char *res, char c, int *res_len, int *res_cap);
 char    *push_res(char *res, const char *to_add, int *res_len, int *res_cap);
-char	*ft_strchr(const char *s, int c);
-int	ft_strcmp(const char *s1, const char *s2);
+char    *ft_strchr(const char *s, int c);
+int    ft_strcmp(const char *s1, const char *s2);
 
 // Memory management
 void *ft_memcpy(void *dst, const void *src, size_t n);

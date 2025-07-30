@@ -6,15 +6,11 @@
 /*   By: merilhan <merilhan@42kocaeli.com.tr>       +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/03 03:36:25 by husarpka          #+#    #+#             */
-/*   Updated: 2025/07/29 05:47:43 by merilhan         ###   ########.fr       */
+/*   Updated: 2025/07/29 06:06:23 by merilhan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "shell.h"
-
-// Global environment list
-t_env *g_env_list = NULL;
-
 
 t_tokenizer *tokenizer_init(char *input)
 {
@@ -269,16 +265,15 @@ int is_pure_variable_expansion(char *input)
         return 0;
     return 1;
 }
-void process_and_execute(char *input, char **env)
+void process_and_execute(char *input, char **env,t_env *env_list)
 {
 	if (!input || strlen(input) == 0)
 		return;
 	check_and_handle_signal();
 	
-	// Eğer sadece variable expansion ise, expand et ve değeri yazdır
 	if (is_pure_variable_expansion(input))
 	{
-		char *expanded = expand_with_quotes(input, g_env_list);
+		char *expanded = expand_with_quotes(input, env_list);
 		if (expanded && ft_strlen(expanded) > 0)
 		{
 			printf("%s\n", expanded);
@@ -307,13 +302,11 @@ void process_and_execute(char *input, char **env)
 		return;
 	}
 	
-	// Expansion yap
-	expand_parser_list(cmd_list, g_env_list);
+	expand_parser_list(cmd_list, env_list);
 	
-	// Execute et
-	execute_cmds(cmd_list, env);
+	execute_cmds(cmd_list, env,&env_list);
 	
-	// Cleanup
+
 	gc_free(tokens);
 	gc_free(cmd_list);
 }
@@ -322,8 +315,8 @@ int main(int ac , char **av, char **env)
 	(void)ac;
 	(void)av;
 	
-	// Initialize global environment
-	g_env_list = init_env(env);
+	
+	t_env *env_list = init_env(env);
     
     setup_interactive_signals();
 	
@@ -346,7 +339,7 @@ int main(int ac , char **av, char **env)
         add_history(line);
 		
 		// Direkt git
-		process_and_execute(line, env);
+		process_and_execute(line, env,env_list);
 		
 		free(line);
 	}
